@@ -83,9 +83,9 @@ module NextStep
       end
     end
 
-    # This method will manually fire a single event without a payload.
-    def fire(event)
-      proceed(event)
+    # This method will manually fire a single event,
+    def fire(event, payload=nil)
+      proceed(event, payload)
     end
 
     # Override Step methods 
