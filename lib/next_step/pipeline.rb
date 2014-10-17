@@ -40,6 +40,10 @@ module NextStep
       stop payload, message
     end
 
+    def final_payload
+      next_payload
+    end
+
 
     private
 
