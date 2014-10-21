@@ -9,14 +9,14 @@ module NextStep
     # passing payloads from one step to another.
     def execute_step(step)
       result = step.call(next_payload)
-      next_payload = result.payload
+      @next_payload = result.payload
       messages << result.message if result.message
       result.continue
     end
 
     # Proceed to next step
     def proceed(payload, message=nil)
-      PipelineResult.new(true, message, payload))
+      PipelineResult.new(true, message, payload)
     end
 
     # Stop with an error
