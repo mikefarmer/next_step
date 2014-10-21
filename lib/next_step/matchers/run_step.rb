@@ -4,14 +4,13 @@ module NextStep::Matchers
 
     def initialize(step)
       @step = step
-      @expecting_stop = false
-      @expecting_proceed = false
+      @terminator = nil
     end
 
     def matches?(obj)
       @called_event = false
-      if !@expecting_stop && !@expecting_proceed
-        @msg = "Must supply proceed or stop to the matcher" 
+      if !@terminator
+        @msg = "Must supply proceed, invalid, halt, or stop to the matcher" 
         return false
       end
 
@@ -21,20 +20,18 @@ module NextStep::Matchers
         end
       end
 
-      obj.on_advance do |result|
-        @reason = result.reason
-        @payload = result.payload
+
+      @step_result = obj.send(@step.to_sym)
+      if ! @step_result.kind_of?(NextStep::StepResult)
+        fail "Expected the step to return a StepResult. Make sure you are using proceed, stop, halt, invalid, or safely."
       end
 
+      @after_payload = obj.payload if @before_payload
 
-      if @before_payload
-        @event_result = obj.send(@step.to_sym, @before_payload)
-      else
-        @event_result = obj.send(@step.to_sym)
-      end
+      @message = @step_result.message if @expected_message
 
-      if @expected_reason.present? && @reason.blank?
-        @reason = obj.step_errors.first
+      if @expected_message && @message.nil?
+        @message = obj.step_errors.first
       end
 
       conditions.each do |c|
@@ -48,23 +45,23 @@ module NextStep::Matchers
     end
 
     def with_payload(payload)
-      fail "Cannot call with_payload with using 'stop'. Use with_reason instead." if @expecting_stop
+      fail "Cannot call with_payload with using stop, halt, or invalid." if @terminator != :proceed
       @before_payload = payload
       conditions << {
-        condition: ->{ values_match?(@after_payload, @payload) },
-        msg: ->{ "Expected the payload to be #{@after_payload || 'nil'} but was #{@payload || 'nil'}" },
+        condition: ->{ values_match?(@before_payload, @after_payload) },
+        msg: ->{ "Expected the payload to be #{@before_payload || 'nil'} but was #{@after_payload || 'nil'}" },
         not_msg: ->{"Expected the payload to not be #{@after_payload || 'nil'}" }
       }
       self
     end
 
-    def with_reason(reason)
-      fail "Cannot call with_reason using 'proceed'. Use with_payload instead." if @expecting_proceed
-      @expected_reason = reason
+    def with_message(message)
+      fail "Cannot call with_message using 'proceed'. Use stop or invalid instead." if [:proceed, :halt].include? @terminator
+      @expected_message = message
       conditions << {
-        condition: ->{ values_match?(@expected_reason, @reason) },
-        msg: ->{ "Expected the reason to be #{@expected_reason || 'nil'} but got #{@reason || 'nil'}" },
-        not_msg: ->{ "Expected the reason to not be #{@expected_reason || 'nil'}" }
+        condition: ->{ values_match?(@expected_message, @message) },
+        msg: ->{ "Expected the message to be '#{@expected_message || 'nil'}' but got '#{@message || 'nil'}'" },
+        not_msg: ->{ "Expected the message to not be '#{@expected_message || 'nil'}'" }
       }
       self
     end
@@ -74,24 +71,45 @@ module NextStep::Matchers
     end
 
     def proceed
-      @expecting_proceed = true
+      @terminator = :proceed
       conditions << {
-        condition: ->{ @event_result == true },
-        msg: ->{ "Expected the step to proceed but it stopped. Reason: #{@reason}" },
-        not_msg: ->{ "Expected the step to stop but it proceeded. Reason: #{@reason}" }
+        condition: ->{ @step_result.continue == true },
+        msg: ->{ "Expected the step to proceed but it stopped. Message: #{@message}" },
+        not_msg: ->{ "Expected the step to stop but it proceeded. Message: #{@message}" }
       }
       self
     end
 
     def stop
-      @expecting_stop = true
+      @terminator = :stop
       conditions << {
-        condition: ->{ @event_result == false },
+        condition: ->{ @step_result.continue == false },
         msg: ->{ "Expected the step to stop but it proceeded." },
         not_msg: ->{ "Expected the step to proceed but it stopped." }
       }
       self
     end
+
+    def halt
+      @terminator = :halt
+      conditions << {
+        condition: ->{ @step_result.continue == false && @step_result.message.nil? },
+        msg: ->{ "Expected the step to halt but it proceeded." },
+        not_msg: ->{ "Expected the step to proceed but it halted." }
+      }
+      self
+    end
+
+    def invalid
+      @terminator = :invalid
+      conditions << {
+        condition: ->{ @step_result.continue && @step_result.message },
+        msg: ->{ "Expected the step to be invalid but it proceeded." },
+        not_msg: ->{ "Expected the step to proceed but it was invalid." }
+      }
+      self
+    end
+    alias_method :invalidate, :invalid
 
     def with_event(event_name)
       @event_name = event_name
@@ -108,7 +126,7 @@ module NextStep::Matchers
     end
     
     def failure_message_when_negated
-      @not_msg || "There was a problem getting the outcome of the step: #{@step}. Could possibly be that the step didn't end with proceed or stop."
+      @not_msg || "There was a problem getting the outcome of the step: #{@step}. Negation only works with simple matchers of just proceed or stop."
     end
 
     private

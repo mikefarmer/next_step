@@ -17,46 +17,60 @@ module NextStep
       @step_errors ||= []
     end
 
+    def step_results 
+      @step_results ||= []
+    end
+
     def safely(error=nil)
       yield if block_given?
       proceed
     rescue => e
       message = error ? error : e.message
-      stop message
+      stop_with_exception message, e
     end
 
     # Can be overridden to allow wrapping functionality around 
     # running a step or calling steps in different ways.
     # See NextStep::EventProcessor for an example
     def execute_step(step)
-      result = step.call
-      advances.each do |event|
-        event.call(StepResult.new(:step, step_errors, result))
+      result = case 
+      when step.respond_to?(:call) then step.call
+      when step.kind_of?(Symbol) then send(step)
+      else
+        fail "Invalid step. Must be a callable object or symbol method reference."
       end
-      result
+      process_result(result)
+    end
+
+    def process_result(result)
+      step_results << result
+      advances.each do |callable|
+        callable.call(result)
+      end
+      result.continue
     end
 
     # Use this to send the step runner a halt and don't process anything else.
     def halt
-      false
+      StepResult.new(false)
     end
 
     # Use stop to add an error and completely stop the steps from proceeding.
     def stop(message="")
-      step_errors << message unless message.blank?
-      false
+      step_errors << message unless message.nil? || message.empty?
+      StepResult.new(false, message)
     end
 
     # Use invalid to add an error but continue procesing other steps.
     # Eventual result will be false. This is good for a set of validations 
     # where you want to collect all the errors.
-    def invalid(message="")
+    def invalid(message)
       step_errors << message
-      true
+      StepResult.new(true, message)
     end
 
     def proceed
-      true
+      StepResult.new(true)
     end
 
     # Allow a block to be called after each step is run
@@ -66,6 +80,10 @@ module NextStep
 
     def advances
       @advances ||= []
+    end
+
+    def stop_with_exception(message, exception)
+      StepResult.new(false, message, exception)
     end
 
   end

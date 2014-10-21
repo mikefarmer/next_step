@@ -5,4 +5,8 @@ module NextStep::Matchers
     RunStep.new(step)
   end
 
+  def run_pipeline_step(step, payload)
+    RunPipelineStep.new(step_payload)
+  end
+
 end
