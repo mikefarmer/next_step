@@ -2,7 +2,7 @@ require "next_step/version"
 
 module NextStep
 
-  StepResult = Struct.new(:continue, :message, :exception, :payload)
+  StepResult = Struct.new(:continue, :message, :exception, :payload, :step)
   EventMissingError = Class.new(StandardError)
 
   autoload :StepRunner, 'next_step/step_runner'

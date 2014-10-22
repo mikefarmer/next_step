@@ -70,8 +70,11 @@ module NextStep
     end
 
     # This method will manually fire a single event,
-    def fire(event)
-      proceed(event)
+    def fire(event, payload=nil)
+      step_result = StepResult.new(true, "manual event")
+      step_result.payload = payload if payload
+      fire_events event, step_result 
+      step_result
     end
 
     # Override Step methods 
@@ -85,9 +88,9 @@ module NextStep
     end
 
     # Fires the event and then passes a payload along to the next step
-    def proceed(event)
+    def proceed(event=nil)
       r = StepResult.new(true)
-      fire_events(event, r)
+      fire_events(event, r) if event
       r
     end
 
@@ -104,8 +107,8 @@ module NextStep
       r
     end
 
-    def stop_with_exception(message, exception)
-      r = StepResult.new(false, message, exception)
+    def stop_with_exception(description, exception)
+      r = StepResult.new(false, "Exception when #{description}", exception)
       fire_events(:exception, r)
       r
     end

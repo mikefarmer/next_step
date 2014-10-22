@@ -5,7 +5,7 @@ module NextStep
 
     def run_steps(steps, errors=[])
       @step_errors = errors
-      result = steps.each { |step| break false unless execute_step(step) }
+      result = steps.each { |step|  break false unless process_result(execute_step(step), step) }
       result && @step_errors.empty?
     end
 
@@ -21,12 +21,11 @@ module NextStep
       @step_results ||= []
     end
 
-    def safely(error=nil)
+    def safely(description)
       yield if block_given?
       proceed
     rescue => e
-      message = error ? error : e.message
-      stop_with_exception message, e
+      stop_with_exception description, e
     end
 
     # Can be overridden to allow wrapping functionality around 
@@ -39,14 +38,15 @@ module NextStep
       else
         fail "Invalid step. Must be a callable object or symbol method reference."
       end
-      process_result(result)
+      result
     end
 
-    def process_result(result)
-      step_results << result
+    def process_result(result, step)
+      result.step = step.to_s
       advances.each do |callable|
         callable.call(result)
       end
+      step_results << result
       result.continue
     end
 
@@ -82,8 +82,8 @@ module NextStep
       @advances ||= []
     end
 
-    def stop_with_exception(message, exception)
-      StepResult.new(false, message, exception)
+    def stop_with_exception(description, exception)
+      StepResult.new(false, "Exception when #{description}", exception)
     end
 
   end
