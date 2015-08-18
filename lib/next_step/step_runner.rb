@@ -83,7 +83,7 @@ module NextStep
     end
 
     def stop_with_exception(description, exception)
-      message = "Exception when #{description}"
+      message = "Exception when #{description}: #{exception.message}"
       step_errors << message
       StepResult.new(false, message, exception)
     end
