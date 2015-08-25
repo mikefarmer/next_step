@@ -28,9 +28,9 @@ module NextStep::Matchers
 
       @after_payload = obj.payload if @before_payload
 
-      @message = @step_result.message if @expected_message
+      @message = @step_result.message
 
-      if @expected_message && @message.nil?
+      if @expected_message && !obj.step_errors.empty?
         @message = obj.step_errors.first
       end
 
