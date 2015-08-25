@@ -82,6 +82,7 @@ module NextStep
     # Fire the desired event and halt execution with a reason.
     # No payload is passed since no further steps will be called.
     def stop(event, reason="")
+      step_errors << reason unless reason == ""
       r = StepResult.new(false, reason)
       fire_events(event, r)
       r
@@ -101,7 +102,7 @@ module NextStep
     end
 
     def invalid(event, message)
-      step_errors << message
+      step_errors << message unless message == ""
       r = StepResult.new(true, message)
       fire_events(event, r)
       r
