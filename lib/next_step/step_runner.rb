@@ -38,7 +38,7 @@ module NextStep
       else
         fail "Invalid step. Must be a callable object or symbol method reference."
       end
-      fail "Step #{step} did not return a valid result" unless step.is_a?(StepResult)
+      fail "Step #{step} did not return a valid result" unless result.is_a?(StepResult)
       result
     end
 
