@@ -2,22 +2,32 @@ module NextStep
   module StepRunner
 
     # Pass a list of steps which are an array of callable objects (lambda, proc, etc)
-
     def run_steps(steps, errors=[])
       @step_errors = errors
-      result = steps.each { |step|  break false unless process_result(execute_step(step), step) }
+      result = steps.each { |step| break false unless process_result(execute_step(step), step) }
       result && @step_errors.empty?
     end
 
-    # a container for any errors encountered while running steps. 
+    # When ActiveRecord is present, use an active record transaction
+    def run_steps_in_transaction(steps, errors=[])
+      return run_steps(steps, errors) unless defined?(ActiveRecord)
+      ActiveRecord::Base.transaction do
+        yield if block_given?
+        r = run_steps(steps, errors)
+        fail ActiveRecord::Rollback unless r
+        r
+      end
+    end
+
+    # a container for any errors encountered while running steps.
     # Adding items to the container will result in the run_steps method
-    # returning false indicating a failed attempt at running all the 
+    # returning false indicating a failed attempt at running all the
     # steps successfully
     def step_errors
       @step_errors ||= []
     end
 
-    def step_results 
+    def step_results
       @step_results ||= []
     end
 
@@ -28,11 +38,11 @@ module NextStep
       stop_with_exception description, e
     end
 
-    # Can be overridden to allow wrapping functionality around 
+    # Can be overridden to allow wrapping functionality around
     # running a step or calling steps in different ways.
     # See NextStep::EventProcessor for an example
     def execute_step(step)
-      result = case 
+      result = case
       when step.respond_to?(:call) then step.call
       when step.kind_of?(Symbol) then send(step)
       else
@@ -63,7 +73,7 @@ module NextStep
     end
 
     # Use invalid to add an error but continue procesing other steps.
-    # Eventual result will be false. This is good for a set of validations 
+    # Eventual result will be false. This is good for a set of validations
     # where you want to collect all the errors.
     def invalid(message)
       step_errors << message
