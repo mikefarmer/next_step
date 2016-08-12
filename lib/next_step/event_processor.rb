@@ -6,7 +6,7 @@ module NextStep
   #  on :success do |result|
   #    if result.reason == :error
   #      ... do something
-  #    else 
+  #    else
   #      ... do something else
   #    end
   #
@@ -15,28 +15,30 @@ module NextStep
   #
   #  fire :success
   #
-  #  or 
+  #  or
   #
   #  When used with the StepRunner, allows the steps to fire events
   #  that are then handled by the blocks using the `on` method
   #
   #  The Event processor is useful for communicating the status of steps as they run
-  #  back to the caller of the object. 
+  #  back to the caller of the object.
   #
   #  For just executing a series of steps without events, use the StepRunner.
-  #  If you need to send back a status, or execute code outside of the object when 
-  #  certain states are met or messages need to be communicated, then use 
+  #  If you need to send back a status, or execute code outside of the object when
+  #  certain states are met or messages need to be communicated, then use
   #  the EventProcessor for that.
   #
-  # 
-   
+  #
+
   module EventProcessor
 
     attr_reader :last_event_fired
 
-    def on(event, &block)
-      events[event.to_sym] ||= []
-      events[event.to_sym] << block
+    def on(*event_handlers, &block)
+      event_handlers.each do |event|
+        events[event.to_sym] ||= []
+        events[event.to_sym] << {type: :block, block: block}
+      end
       self
     end
 
@@ -46,25 +48,39 @@ module NextStep
       self
     end
 
-
     # Run the block whenever a step has completed regardless of outcome.
     def on_advance(&block)
       advance_events << block
       self
     end
 
+    # Register a handler object to be used to handle events registered with #handler
+    def register_handler_obj(obj)
+      @handler_ctx = obj
+    end
+
+    # Register a method to call on the handler object when an event is triggered
+    def handler(event, *meths)
+      meths.each do |meth|
+        events[event.to_sym] ||= []
+        events[event.to_sym] << {type: :method, method: meth.to_sym}
+      end
+      self
+    end
+    alias handlers handler
+
     protected
 
     # Executes the event handlers(callable object or block) for each event and provides
-    # a StepResult object to the handler. 
+    # a StepResult object to the handler.
     def fire_events(event_name, step_result)
       events_to_fire = events.fetch(event_name, missing_events)
       events_to_fire = (events_to_fire | advance_events)
       if events_to_fire.empty?
-        fail EventMissingError.new("No event registered for #{event_name}")
+        fail EventMissingError, "No event registered for #{event_name}"
       end
-      events_to_fire.each do |event| 
-        event.call(step_result, event_name)
+      events_to_fire.each do |event|
+        execute_event(event_name, event, step_result)
       end
       @last_event_fired = event_name
     end
@@ -73,11 +89,11 @@ module NextStep
     def fire(event, payload=nil)
       step_result = StepResult.new(true, "manual event")
       step_result.payload = payload if payload
-      fire_events event, step_result 
+      fire_events event, step_result
       step_result
     end
 
-    # Override Step methods 
+    # Override Step methods
     # In the context of events, invalid and stop are the same.
     # Fire the desired event and halt execution with a reason.
     # No payload is passed since no further steps will be called.
@@ -92,7 +108,7 @@ module NextStep
     # Fires the event and then passes a payload along to the next step
     def proceed(event=nil, bag={})
       r = StepResult.new(true)
-      r.bag = bag  
+      r.bag = bag
       fire_events(event, r) if event
       r
     end
@@ -122,12 +138,23 @@ module NextStep
       @events ||= {}
     end
 
-    def missing_events 
+    def missing_events
       @missing_events ||= []
     end
 
     def advance_events
       @advance_events ||= []
+    end
+
+    def execute_event(event_name, event, step_result)
+      if event[:type] == :block
+        event[:block].call(step_result, event_name)
+      elsif event[:type] == :method
+        fail 'You must register a handler object with #register_handler_obj' unless @handler_ctx
+        @handler_ctx.send(event[:method], step_result, event_name)
+      else
+        fail "Invalid event #{event_name} :: #{event}"
+      end
     end
 
   end
