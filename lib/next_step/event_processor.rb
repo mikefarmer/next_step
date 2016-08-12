@@ -81,16 +81,18 @@ module NextStep
     # In the context of events, invalid and stop are the same.
     # Fire the desired event and halt execution with a reason.
     # No payload is passed since no further steps will be called.
-    def stop(event, reason="")
+    def stop(event, reason="", bag={})
       step_errors << reason unless reason == ""
       r = StepResult.new(false, reason)
+      r.bag = bag
       fire_events(event, r)
       r
     end
 
     # Fires the event and then passes a payload along to the next step
-    def proceed(event=nil)
+    def proceed(event=nil, bag={})
       r = StepResult.new(true)
+      r.bag = bag  
       fire_events(event, r) if event
       r
     end
