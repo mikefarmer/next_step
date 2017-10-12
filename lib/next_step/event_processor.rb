@@ -149,7 +149,7 @@ module NextStep
       if event[:type] == :block
         r = event[:block].call(step_result, event_name)
         advance_events.each do |advance_event|
-          advance_event.call("ADVANCED: #{event_name}", r, step_result)
+          advance_event[:block].call("ADVANCED: #{event_name}", r, step_result)
         end
         r
       elsif event[:type] == :method
