@@ -44,13 +44,13 @@ module NextStep
 
     # Run the block when an event is raised that is not being captured with the `on` method
     def on_missing(&block)
-      missing_events << block
+      missing_events << {type: :block, block: block}
       self
     end
 
     # Run the block whenever a step has completed regardless of outcome.
     def on_advance(&block)
-      advance_events << block
+      advance_events << {type: :block, block: block}
       self
     end
 
