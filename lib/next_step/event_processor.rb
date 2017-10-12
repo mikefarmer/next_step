@@ -48,12 +48,6 @@ module NextStep
       self
     end
 
-    # Run the block whenever a step has completed regardless of outcome.
-    def on_advance(&block)
-      advance_events << {type: :block, block: block}
-      self
-    end
-
     # Register a handler object to be used to handle events registered with #handler
     def register_handler_obj(obj)
       @handler_ctx = obj
@@ -141,17 +135,9 @@ module NextStep
       @missing_events ||= []
     end
 
-    def advance_events
-      @advance_events ||= []
-    end
-
     def execute_event(event_name, event, step_result)
       if event[:type] == :block
-        r = event[:block].call(step_result, event_name)
-        advance_events.each do |advance_event|
-          advance_event[:block].call("ADVANCED: #{event_name}", r, step_result)
-        end
-        r
+        event[:block].call(step_result, event_name)
       elsif event[:type] == :method
         fail 'You must register a handler object with #register_handler_obj' unless @handler_ctx
         @handler_ctx.send(event[:method], step_result, event_name)
