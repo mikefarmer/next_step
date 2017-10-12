@@ -75,11 +75,10 @@ module NextStep
     # a StepResult object to the handler.
     def fire_events(event_name, step_result)
       events_to_fire = events.fetch(event_name, missing_events)
-      events_to_fire = (events_to_fire | advance_events)
       if events_to_fire.empty?
         fail EventMissingError, "No event registered for #{event_name}"
       end
-      events_to_fire.each do |event|
+      events_to_fire.each_with_index do |event, i|
         execute_event(event_name, event, step_result)
       end
       @last_event_fired = event_name
@@ -148,7 +147,11 @@ module NextStep
 
     def execute_event(event_name, event, step_result)
       if event[:type] == :block
-        event[:block].call(step_result, event_name)
+        r = event[:block].call(step_result, event_name)
+        advance_events.each do |advance_event|
+          advance_event.call("ADVANCED: #{event_name}", r, step_result)
+        end
+        r
       elsif event[:type] == :method
         fail 'You must register a handler object with #register_handler_obj' unless @handler_ctx
         @handler_ctx.send(event[:method], step_result, event_name)
